@@ -1,3 +1,4 @@
+
 {
   "name": "css4007-ai-agents-final",
   "private": true,
@@ -12,5 +13,8 @@
     "report": "node scripts/validate-weekly-report.mjs",
     "activity": "node scripts/analyze-commits.mjs",
     "grade": "node scripts/evaluate-progress.mjs"
+  },
+  "dependencies": {
+    "openai": "^7.53.0"
   }
 }
