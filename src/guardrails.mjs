@@ -2,6 +2,7 @@
 // List of allowed tools
 const allowedTools = [
   "get_test_results",
+  "get_student_progress",
   "analyze_mistakes",
   "search_question_bank"
 ];
@@ -30,6 +31,7 @@ export function validateToolCall(name, args) {
 
   // These tools do not accept arguments
   if (name === "get_test_results" ||
+      name === "get_student_progress" ||
       name === "analyze_mistakes") {
 
     if (Object.keys(args).length !== 0) {

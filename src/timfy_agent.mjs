@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import { runToolWithRetry } from "./retry_tool.mjs";
 import { studentAnswers } from "./sample_student.mjs";
 import { check_student_answers } from "./check_answers.mjs";
+import { get_student_progress } from "./get_student_progress.mjs";
 import { analyze_mistakes } from "./analyze_mistakes.mjs";
 import { search_question_bank } from "./search_question_bank.mjs";
 import { verifyPracticeOutput } from "./verify_practice_output.mjs";
@@ -29,6 +30,7 @@ const MAX_TOOL_ATTEMPTS = 12;
 const state = {
   results: null,
   analysis: null,
+  progress: null,
   practice: [],
   toolCalls: 0,
   toolAttempts: 0,
@@ -40,7 +42,7 @@ const tools = [
   {
     type: "function",
     name: "get_test_results",
-    description: "Get the current student's diagnostic test results.",
+    description: "Get the baseline diagnostic results from the original local demo. For newer results or comparing attempts, use get_student_progress.",
     strict: true,
     parameters: {
       type: "object",
@@ -53,6 +55,18 @@ const tools = [
     type: "function",
     name: "analyze_mistakes",
     description: "Analyze the student's test results to find weak topics. Call get_test_results first.",
+    strict: true,
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+      additionalProperties: false
+    }
+  },
+  {
+    type: "function",
+    name: "get_student_progress",
+    description: "Compare the demo student's two Firestore-exported attempts and find topics still needing practice.",
     strict: true,
     parameters: {
       type: "object",
@@ -125,6 +139,11 @@ function executeTool(name, args) {
     return state.analysis;
   }
 
+  if (name === "get_student_progress") {
+    state.progress ??= get_student_progress(process.env.TIMFY_PROGRESS_SNAPSHOT);
+    return state.progress;
+  }
+
   if (name === "search_question_bank") {
     const rawQuestions = search_question_bank(args);
     const questions = verifyPracticeOutput(rawQuestions);
@@ -155,6 +174,12 @@ Answer in Russian.
 Use available tools when necessary.
 
 For test analysis, get results before analyzing mistakes.
+For progress, improvement, or comparison between attempts, use get_student_progress.
+For comparisons, use the scores and topic counts returned by that tool.
+If the progress snapshot is missing or invalid, say that comparison is unavailable.
+If the user requests practice based on their progress, first use get_student_progress
+and then search for the recommended topic, unless the user explicitly names a different
+topic. If recommendedTopic is null, say that no topic is below the practice threshold.
 If practice is requested, use real questions from the bank.
 
 Choose actions based on tool results.
@@ -274,6 +299,10 @@ try {
       state.analysis.recommendedTopic);
   }
 
+  if (state.progress) {
+    console.log("Progress:", JSON.stringify(state.progress, null, 2));
+  }
+
   console.log("Practice questions:",
     state.practice.map(q => ({
       id: q.id,
@@ -289,13 +318,21 @@ try {
     JSON.stringify(state.trace, null, 2));
 
   // Check that the requested workflow really completed
-  const needsAnalysis = /пробник|ошибк|результат|проанализ/i.test(request);
-  const needsPractice = /подбер|задан|практик|тренир/i.test(request);
+  const needsProgress = /прогресс|сравн|улучш|динамик|изменил|progress|compar|improv/i.test(request);
+  const needsAnalysis = !needsProgress && /пробник|ошибк|результат|проанализ/i.test(request);
+  const needsPractice = /подбер|задан|практик|тренир|practice/i.test(request);
+  const needsWeakTopicPractice = needsProgress && needsPractice &&
+    /слаб\S* тем|weak topic/i.test(request);
+  const hasRequestedPractice = needsWeakTopicPractice
+    ? state.progress?.recommendedTopic === null ||
+      state.practice.some(question => question.topic === state.progress?.recommendedTopic)
+    : state.practice.length > 0;
 
   const completed =
-    stopReason === "model_finished" &&
+    stopReason === "model_finished" && finalAnswer.trim().length > 0 &&
+    (!needsProgress || Boolean(state.progress)) &&
     (!needsAnalysis || Boolean(state.analysis)) &&
-    (!needsPractice || state.practice.length > 0);
+    (!needsPractice || hasRequestedPractice);
 
   console.log("\nVerified completion:", completed);
 
