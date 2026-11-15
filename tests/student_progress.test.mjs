@@ -76,3 +76,26 @@ test("Do not accept a student ID or file path from the model", () => {
     studentId: "another_student"
   }), /Unexpected arguments/);
 });
+
+test("Compare the two latest attempts even when all three are present", t => {
+  const path = snapshotPath(t);
+  writeFileSync(path, JSON.stringify({
+    studentId: "student_demo_01",
+    isDemo: true,
+    attempts: {
+      attempt_003: attempt(1, 2),
+      attempt_001: attempt(1, 0),
+      attempt_002: attempt(2, 1)
+    }
+  }));
+
+  const result = get_student_progress(path);
+  assert.deepEqual(result.first, { score: 7, total: 8 });
+  assert.deepEqual(result.latest, { score: 7, total: 8 });
+  assert.equal(result.scoreChange, 0);
+  assert.equal(result.previousAttemptId, "attempt_002");
+  assert.equal(result.latestAttemptId, "attempt_003");
+  assert.deepEqual(result.previousWeakTopics, ["logarithms"]);
+  assert.deepEqual(result.remainingWeakTopics, ["powers"]);
+  assert.equal(result.recommendedTopic, "powers");
+});
