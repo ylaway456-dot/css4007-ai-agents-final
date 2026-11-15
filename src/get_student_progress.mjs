@@ -56,8 +56,27 @@ export function get_student_progress(snapshotPath) {
     throw new Error("Only the configured demo student's snapshot is allowed.");
   }
 
-  const first = validateAttempt(snapshot.attempts?.attempt_001);
-  const latest = validateAttempt(snapshot.attempts?.attempt_002);
+  const attempts = Object.entries(snapshot.attempts ?? {}).map(([id, attempt]) => {
+    const match = /^attempt_(\d{3,})$/.exec(id);
+    const number = match ? Number(match[1]) : 0;
+    if (!Number.isSafeInteger(number) || number < 1) {
+      throw new Error("Invalid attempt ID in the progress snapshot.");
+    }
+    return { id, number, attempt };
+  });
+
+  attempts.sort((a, b) => a.number - b.number);
+  if (attempts.length < 2) {
+    throw new Error("The progress snapshot requires at least two attempts.");
+  }
+
+  const [previousAttempt, latestAttempt] = attempts.slice(-2);
+  if (previousAttempt.number === latestAttempt.number) {
+    throw new Error("The progress snapshot contains duplicate attempt numbers.");
+  }
+
+  const first = validateAttempt(previousAttempt.attempt);
+  const latest = validateAttempt(latestAttempt.attempt);
 
   if (topics.some(topic => first.byTopic[topic].total !== latest.byTopic[topic].total)) {
     throw new Error("These demo attempts must have the same question count for each topic.");
@@ -72,6 +91,8 @@ export function get_student_progress(snapshotPath) {
   }));
 
   return {
+    previousAttemptId: previousAttempt.id,
+    latestAttemptId: latestAttempt.id,
     first: { score: first.score, total: first.total },
     latest: { score: latest.score, total: latest.total },
     scoreChange: latest.score - first.score,

@@ -66,7 +66,7 @@ const tools = [
   {
     type: "function",
     name: "get_student_progress",
-    description: "Compare the demo student's two Firestore-exported attempts and find topics still needing practice.",
+    description: "Compare the demo student's two most recent Firestore-exported attempts and find topics still needing practice.",
     strict: true,
     parameters: {
       type: "object",
@@ -175,7 +175,8 @@ Use available tools when necessary.
 
 For test analysis, get results before analyzing mistakes.
 For progress, improvement, or comparison between attempts, use get_student_progress.
-For comparisons, use the scores and topic counts returned by that tool.
+For comparisons, use the scores, attempt IDs, and topic counts returned by that tool.
+The first field in the comparison describes the earlier of the two compared attempts.
 If the progress snapshot is missing or invalid, say that comparison is unavailable.
 If the user requests practice based on their progress, first use get_student_progress
 and then search for the recommended topic, unless the user explicitly names a different

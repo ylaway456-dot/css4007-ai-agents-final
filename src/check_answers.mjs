@@ -17,7 +17,7 @@ export function check_student_answers(studentAnswers) {
   for (const student of studentAnswers) {
 
     // Find the question
-    const question = questionBank.find(q => q.id === student.id);
+    const question = questionBank.find(q => q.id === student?.id);
 
     // Validate the answer
     if (!question ||
